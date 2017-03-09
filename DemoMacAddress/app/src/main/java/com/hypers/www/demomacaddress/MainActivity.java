@@ -1,6 +1,7 @@
 package com.hypers.www.demomacaddress;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -25,6 +26,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = MainActivity.class.getSimpleName();
     private Context mContext;
     private TextView mTvInfo;
 
@@ -41,10 +43,10 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                mTvInfo.setText("mac address :" + getMacAddress() + "\n");
-                Log.d("MainActivity", "mac address =" + getMacAddress());
-                Log.d("MainActivity", "file = " + getAddressMacByFile());
-                Log.d("MainActivity", "interface =" + getAdressMacByInterface());
+                mTvInfo.setText("mac address :" + getMacAddress(mContext) + "\n");
+                Log.d("MainActivity", "mac address =" + getMacAddress(mContext));
+                Log.d("MainActivity", "file = " + getAddressMacByFile(mContext));
+                Log.d("MainActivity", "interface =" + getAdressMacByInterface(mContext));
             }
         });
     }
@@ -88,50 +90,68 @@ public class MainActivity extends AppCompatActivity {
     private static final String SYS_CLASS_NET = "/sys/class/net/";
     private static final String SYS_CLASS_NET_SUFFIX = "/address";
 
-    public String getMacAddress() {
-        WifiManager manager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
-        WifiInfo wifiInfo = manager.getConnectionInfo();
-        if (wifiInfo.getMacAddress().equals(MARSHMALLOW_DEFAULT_MAC_ADDRESS)) {
-            String result = getAdressMacByInterface();
-            if (!TextUtils.isEmpty(result)) {
-                return result.toLowerCase();
+    /**
+     * 获取mac
+     *
+     * @param context
+     * @return
+     */
+    public static String getMacAddress(Context context) {
+        String wifimac = "";
+        if (checkPermissions(context, "android.permission.ACCESS_WIFI_STATE")) {
+            WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            WifiInfo wifiInfo = manager.getConnectionInfo();
+            if (wifiInfo.getMacAddress().equals(MARSHMALLOW_DEFAULT_MAC_ADDRESS)) {
+                String result = getAdressMacByInterface(context);
+                if (!TextUtils.isEmpty(result)) {
+                    return result.toLowerCase();
+                }
+                result = getAddressMacByFile(context);
+                if (!TextUtils.isEmpty(result)) {
+                    return result.toLowerCase();
+                }
+                return MARSHMALLOW_DEFAULT_MAC_ADDRESS;
+            } else {
+                return wifiInfo.getMacAddress().toLowerCase();
             }
-            result = getAddressMacByFile();
-            if (!TextUtils.isEmpty(result)) {
-                return result.toLowerCase();
-            }
-            return MARSHMALLOW_DEFAULT_MAC_ADDRESS;
         } else {
-            return wifiInfo.getMacAddress().toLowerCase();
+            Log.e(TAG, "need permission :android.permission.ACCESS_WIFI_STATE");
         }
+        return wifimac;
     }
 
-    private String getAdressMacByInterface() {
-        try {
-            List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
-            for (NetworkInterface nif : all) {
-                if (nif.getName().equalsIgnoreCase("wlan0")) {
-                    byte[] macBytes = nif.getHardwareAddress();
-                    if (macBytes == null) {
-                        return "";
+
+    private static String getAdressMacByInterface(Context context) {
+        if (checkPermissions(context, "android.permission.INTERNET")) {
+            try {
+                List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
+                for (NetworkInterface nif : all) {
+                    if (nif.getName().equalsIgnoreCase("wlan0")) {
+                        byte[] macBytes = nif.getHardwareAddress();
+                        if (macBytes == null) {
+                            return "";
+                        }
+                        StringBuilder res1 = new StringBuilder();
+                        for (byte b : macBytes) {
+                            res1.append(String.format("%02X:", b));
+                        }
+                        if (res1.length() > 0) {
+                            res1.deleteCharAt(res1.length() - 1);
+                        }
+                        return res1.toString();
                     }
-                    StringBuilder res1 = new StringBuilder();
-                    for (byte b : macBytes) {
-                        res1.append(String.format("%02X:", b));
-                    }
-                    if (res1.length() > 0) {
-                        res1.deleteCharAt(res1.length() - 1);
-                    }
-                    return res1.toString();
                 }
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
             }
-        } catch (Exception e) {
-            Log.e("MainActivity", e.getMessage());
+        } else {
+            Log.e(TAG, "need permission :android.permission.INTERNET");
         }
+
         return "";
     }
 
-    private String getAddressMacByFile() {
+    private static String getAddressMacByFile(Context context) {
         String result = "";
         String macFileAddress = SYS_CLASS_NET + getInterfaceNameByReflect() + SYS_CLASS_NET_SUFFIX;
         File fl = new File(macFileAddress);
@@ -144,50 +164,67 @@ public class MainActivity extends AppCompatActivity {
                     result += line;
                 }
             } catch (Exception e) {
-                Log.e("MainActivity", e.getMessage());
+                Log.e(TAG, e.getMessage());
             } finally {
                 try {
                     if (null != bufferedReader) {
                         bufferedReader.close();
                     }
                 } catch (IOException e) {
-                    Log.e("MainActivity", e.getMessage());
+                    Log.e(TAG, e.getMessage());
                 }
             }
         } else {
-            try {
-                NetworkInterface nif = NetworkInterface.getByName(getInterfaceNameByReflect());
-                if (null != nif) {
-                    byte[] macBytes = nif.getHardwareAddress();
-                    if (macBytes == null) {
-                        return "";
+            if (checkPermissions(context, "android.permission.INTERNET")) {
+                try {
+                    NetworkInterface nif = NetworkInterface.getByName(getInterfaceNameByReflect());
+                    if (null != nif) {
+
+                        byte[] macBytes = nif.getHardwareAddress();
+                        if (macBytes == null) {
+                            return "";
+                        }
+                        StringBuilder sb = new StringBuilder();
+                        for (byte b : macBytes) {
+                            sb.append(String.format("%02X:", b));
+                        }
+                        if (sb.length() > 0) {
+                            sb.deleteCharAt(sb.length() - 1);
+                        }
+                        result = sb.toString();
+
                     }
-                    StringBuilder sb = new StringBuilder();
-                    for (byte b : macBytes) {
-                        sb.append(String.format("%02X:", b));
-                    }
-                    if (sb.length() > 0) {
-                        sb.deleteCharAt(sb.length() - 1);
-                    }
-                    result = sb.toString();
+                } catch (Exception e) {
+                    Log.e(TAG, e.getMessage());
                 }
-            } catch (Exception e) {
-                Log.e("MainActivity", e.getMessage());
+            } else {
+                Log.e(TAG, "need permission :android.permission.INTERNET");
             }
         }
         return result;
     }
 
-    private String getInterfaceNameByReflect() {
+    private static String getInterfaceNameByReflect() {
         String interFaceName = "";
         try {
             Class systemPropertiesClazz = Class.forName("android.os.SystemProperties");
             Method getMethod = systemPropertiesClazz.getDeclaredMethod("get", String.class, String.class);
             interFaceName = (String) getMethod.invoke(systemPropertiesClazz.newInstance(), "wifi.interface", "wlan0");
         } catch (Exception e) {
-            Log.e("MainActivity", e.getMessage());
+            Log.e(TAG, e.getMessage());
         }
         return interFaceName;
+    }
+
+    private static boolean checkPermissions(Context context, String permission) {
+        try {
+            PackageManager localPackageManager = context.getPackageManager();
+            return localPackageManager.checkPermission(permission,
+                    context.getPackageName()) == PackageManager.PERMISSION_GRANTED;
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            return false;
+        }
     }
 
 }
