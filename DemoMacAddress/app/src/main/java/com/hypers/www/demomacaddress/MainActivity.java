@@ -5,12 +5,13 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -25,6 +26,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private Context mContext;
+    private TextView mTvInfo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,26 +35,18 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         mContext = MainActivity.this;
+        mTvInfo = (TextView) findViewById(R.id.tv_info);
+        mTvInfo.setMovementMethod(ScrollingMovementMethod.getInstance());
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "mac address :" + getMacAddress(), Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+                mTvInfo.setText("mac address :" + getMacAddress() + "\n");
+                Log.d("MainActivity", "mac address =" + getMacAddress());
+                Log.d("MainActivity", "file = " + getAddressMacByFile());
+                Log.d("MainActivity", "interface =" + getAdressMacByInterface());
             }
         });
-    }
-
-    private String getInterfaceNameByReflect() {
-        String interFaceName = "";
-        try {
-            Class systemPropertiesClazz = Class.forName("android.os.SystemProperties");
-            Method getMethod = systemPropertiesClazz.getDeclaredMethod("get", String.class, String.class);
-            interFaceName = (String) getMethod.invoke(systemPropertiesClazz.newInstance(), "wifi.interface", "wlan0");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return interFaceName;
     }
 
     private String getWifiMac() {
@@ -84,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("mac", "interfaceName=" + nIF.getName() + ", mac=" + mac);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("MainActivity", e.getMessage());
         }
         return stringBuilder.toString();
     }
@@ -100,15 +94,15 @@ public class MainActivity extends AppCompatActivity {
         if (wifiInfo.getMacAddress().equals(MARSHMALLOW_DEFAULT_MAC_ADDRESS)) {
             String result = getAdressMacByInterface();
             if (!TextUtils.isEmpty(result)) {
-                return result;
+                return result.toLowerCase();
             }
             result = getAddressMacByFile();
             if (!TextUtils.isEmpty(result)) {
-                return result;
+                return result.toLowerCase();
             }
             return MARSHMALLOW_DEFAULT_MAC_ADDRESS;
         } else {
-            return wifiInfo.getMacAddress();
+            return wifiInfo.getMacAddress().toLowerCase();
         }
     }
 
@@ -121,21 +115,18 @@ public class MainActivity extends AppCompatActivity {
                     if (macBytes == null) {
                         return "";
                     }
-
                     StringBuilder res1 = new StringBuilder();
                     for (byte b : macBytes) {
                         res1.append(String.format("%02X:", b));
                     }
-
                     if (res1.length() > 0) {
                         res1.deleteCharAt(res1.length() - 1);
                     }
                     return res1.toString();
                 }
             }
-
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("MainActivity", e.getMessage());
         }
         return "";
     }
@@ -148,22 +139,55 @@ public class MainActivity extends AppCompatActivity {
             BufferedReader bufferedReader = null;
             try {
                 bufferedReader = new BufferedReader(new FileReader(fl));
-                while (bufferedReader.readLine() != null) {
-                    result += bufferedReader.readLine();
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    result += line;
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e("MainActivity", e.getMessage());
             } finally {
                 try {
                     if (null != bufferedReader) {
                         bufferedReader.close();
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    Log.e("MainActivity", e.getMessage());
                 }
+            }
+        } else {
+            try {
+                NetworkInterface nif = NetworkInterface.getByName(getInterfaceNameByReflect());
+                if (null != nif) {
+                    byte[] macBytes = nif.getHardwareAddress();
+                    if (macBytes == null) {
+                        return "";
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    for (byte b : macBytes) {
+                        sb.append(String.format("%02X:", b));
+                    }
+                    if (sb.length() > 0) {
+                        sb.deleteCharAt(sb.length() - 1);
+                    }
+                    result = sb.toString();
+                }
+            } catch (Exception e) {
+                Log.e("MainActivity", e.getMessage());
             }
         }
         return result;
+    }
+
+    private String getInterfaceNameByReflect() {
+        String interFaceName = "";
+        try {
+            Class systemPropertiesClazz = Class.forName("android.os.SystemProperties");
+            Method getMethod = systemPropertiesClazz.getDeclaredMethod("get", String.class, String.class);
+            interFaceName = (String) getMethod.invoke(systemPropertiesClazz.newInstance(), "wifi.interface", "wlan0");
+        } catch (Exception e) {
+            Log.e("MainActivity", e.getMessage());
+        }
+        return interFaceName;
     }
 
 }
