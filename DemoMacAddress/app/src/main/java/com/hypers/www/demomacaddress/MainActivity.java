@@ -18,6 +18,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
 import java.lang.reflect.Method;
 import java.net.NetworkInterface;
 import java.util.Collections;
@@ -47,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("MainActivity", "mac address =" + getMacAddress(mContext));
                 Log.d("MainActivity", "file = " + getAddressMacByFile(mContext));
                 Log.d("MainActivity", "interface =" + getAdressMacByInterface(mContext));
+                Log.d(TAG, "cat = " + getMacAddressAfterSDK23());
             }
         });
     }
@@ -227,4 +230,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+    public static String getMacAddressAfterSDK23() {
+        String macSerial = null;
+        String str = "";
+        try {
+            Process pp = Runtime.getRuntime().exec("cat /sys/class/net/wlan0/address ");
+            InputStreamReader ir = new InputStreamReader(pp.getInputStream());
+            LineNumberReader input = new LineNumberReader(ir);
+            for (; null != str; ) {
+                str = input.readLine();
+                if (str != null) {
+                    macSerial = str.trim();
+                    break;
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return "00:00:00:00:00:00";
+        }
+        return macSerial;
+    }
 }
